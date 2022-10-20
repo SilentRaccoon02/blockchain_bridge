@@ -1,0 +1,16 @@
+{
+  "bot": {
+    "token": "",
+    "port": ""
+  },
+  "ethereum": {
+    "port": "",
+    "contract": {
+      "address": "",
+      "path": ""
+    }
+  },
+  "database": {
+    "path": ""
+  }
+}
