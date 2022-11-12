@@ -1,11 +1,13 @@
 import json
 import logging
+import os
 import time
 import sqlite3 as sq
 from threading import Thread, Event
 
 from bot import Bot
-from ethereum import Ethereum
+from eth import Ethereum
+from sol import Solana
 from tunnel import Tunnel
 
 logging.basicConfig(level=logging.INFO)
@@ -18,12 +20,14 @@ class App:
         self.__quit_loop = Event()
         self.__tunnel_thread = None
         self.__ethereum_thread = None
+        self.__solana_thread = None
 
         with open(config_path) as file:
             self.__config = json.load(file)
 
         self.__load_bot()
         self.__load_ethereum()
+        self.__load_solana()
 
     def __load_bot(self):
         token = self.__config['bot']['token']
@@ -35,6 +39,13 @@ class App:
         contract_address = self.__config['ethereum']['contract']['address']
         contract_path = self.__config['ethereum']['contract']['path']
         self.__ethereum = Ethereum(contract_address, contract_path, port)
+
+    def __load_solana(self):
+        port = self.__config['solana']['port']
+        contract_path = self.__config['solana']['contract']['path']
+        wallet_path = self.__config['solana']['wallet']['path']
+        test_path = self.__config['solana']['test']['path']
+        self.__solana = Solana(contract_path, wallet_path, test_path, port)
 
     def __tunnel(self):
         token = self.__config['bot']['token']
@@ -50,7 +61,7 @@ class App:
         db = self.__config['database']['path']
 
         while not self.__quit_loop.is_set():
-            with sq.connect(db) as con:
+            with sq.connect(os.getcwd() + db) as con:
                 cur = con.cursor()
                 last_id = cur.execute('SELECT max(id) FROM payments').fetchone()[0]
                 last_id = last_id if last_id is not None else 0
@@ -73,6 +84,24 @@ class App:
 
             time.sleep(1)
 
+    def __solana_loop(self):
+        db = self.__config['database']['path']
+
+        while not self.__quit_loop.is_set():
+            with sq.connect(os.getcwd() + db) as con:
+                cur = con.cursor()
+                pending_transactions = cur.execute('SELECT id, eth_address, solana_address, amount '
+                                                   'FROM payments WHERE status = 1').fetchall()
+
+                for item in pending_transactions:
+                    self.__solana.transaction(item[2], item[3])
+                    cur.execute('UPDATE payments SET status = 2 WHERE id = ?', (item[0],))
+                    chat_id = cur.execute('SELECT chat_id from users WHERE eth_address LIKE ?', (item[1],)).fetchone()
+                    chat_id = chat_id if chat_id is None else chat_id[0]
+                    text = f'Transaction completed'
+                    self.__bot.send_message(chat_id, text)
+            time.sleep(1)
+
     def __open_tunnel(self):
         log.info('opening tunnel')
         self.__tunnel_thread = Thread(target=self.__tunnel)
@@ -87,16 +116,28 @@ class App:
         self.__ethereum_thread = Thread(target=self.__ethereum_loop)
         self.__ethereum_thread.start()
 
+    def __connect_solana(self):
+        log.info('connecting solana')
+        self.__solana.connect()
+
+    def __run_solana(self):
+        log.info('running solana')
+        self.__solana_thread = Thread(target=self.__solana_loop)
+        self.__solana_thread.start()
+
     def run(self):
         self.__open_tunnel()
         time.sleep(4)
         self.__connect_ethereum()
         self.__run_ethereum()
+        self.__connect_solana()
+        self.__run_solana()
 
     def stop(self):
         log.info('quiting loop')
         self.__quit_loop.set()
         self.__ethereum_thread.join()
+        self.__solana_thread.join()
 
         log.info('closing tunnel')
         self.__close_tunnel.set()

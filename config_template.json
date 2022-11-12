@@ -1,16 +1,28 @@
 {
   "bot": {
     "token": "",
-    "port": ""
+    "port": "5000"
   },
   "ethereum": {
-    "port": "",
+    "port": "7545",
     "contract": {
       "address": "",
-      "path": ""
+      "path": "/ethereum/artifacts/Demo_metadata.json"
+    }
+  },
+  "solana": {
+    "port": "8899",
+    "contract": {
+      "path": "/solana/contract.json"
+    },
+    "wallet": {
+      "path": "/solana/wallet.json"
+    },
+    "test": {
+      "path": "/solana/test.json"
     }
   },
   "database": {
-    "path": ""
+    "path": "/bridge.db"
   }
 }
