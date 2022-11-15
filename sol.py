@@ -36,7 +36,7 @@ class Solana:
             data = json.load(file)
             self.__test_keypair = Keypair().from_secret_key(data)
             log.info(f'solana test address: {self.__test_keypair.public_key}')
-            log.info(f'solana test amount: 500000000')
+            log.info('solana test amount: 500000000')
 
     def transaction(self, address: str, amount: int):
         to = PublicKey(address)
